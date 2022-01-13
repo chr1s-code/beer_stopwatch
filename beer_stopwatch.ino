@@ -18,11 +18,11 @@ int temp = 0;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 void setup() {
-  pinMode(TRIGGER, INPUT);
+  pinMode(TRIGGER, INPUT_PULLUP);
   triggerDebouncer.attach(TRIGGER);
   triggerDebouncer.interval(5);
 
-  pinMode(RESET, INPUT);
+  pinMode(RESET, INPUT_PULLUP);
   resetDebouncer.attach(RESET);
   resetDebouncer.interval(5);
   
