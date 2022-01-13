@@ -3,6 +3,7 @@
 Features:
 - false start detection (too early)
 - glass detection
+- display output in german
 
 Needed parts: 
 - 128x64 pixel I2C OLED Display thats compatible with Adafruit SSD_1306 library
