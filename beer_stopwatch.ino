@@ -26,7 +26,7 @@ void setup() {
   resetDebouncer.attach(RESET);
   resetDebouncer.interval(5);
   
-   Serial.begin(115200);
+  Serial.begin(115200);
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
@@ -35,25 +35,58 @@ void setup() {
   delay(2000);
   
   display.clearDisplay();
-  display.setRotation(2);   //Rotate screen output by 180 degrees. Display mounted in wrong orientation
+  display.setRotation(2); 
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0, 10);
   display.println("Zum Starten Taste drücken");
   Serial.println("ready for startup");
   display.display();
-  display.setTextSize(3);
+}
+
+String timeMillis(unsigned short Sectime,unsigned short MStime)
+{
+  String dataTemp = "";
+  
+  if (Sectime < 10)
+  {
+    dataTemp = dataTemp + "0" + String(Sectime)+ ":";
+  }
+  else{
+    dataTemp = dataTemp + String(Sectime)+ ":";
+  }
+  
+  dataTemp = dataTemp + String(MStime) + "s";
+
+//  Serial.print("String Time: ");
+//  Serial.println(dataTemp);
+  
+  return dataTemp;
+}
+
+// Returns true if x is in range [low..high], else false
+bool inRange(unsigned low, unsigned high, unsigned x)
+{
+    return  ((x-low) <= (high-low));
+}
+
+void writeToDisplay(String str, unsigned short textSize = 3){
+  display.clearDisplay();
+  display.setTextSize(textSize);
+  display.setCursor(0, 0);
+  display.print(str);
+  display.display();
 }
 
 bool startState = LOW;
 bool runningState = LOW;
 bool beerTaken = LOW;
 
-unsigned long startMillis;
-unsigned long currentMillis;
-unsigned long elapsedMillis;
-unsigned long countdownMillis = 3000;
-long remainingMillis;
+unsigned short startMillis;
+unsigned short currentMillis;
+unsigned short elapsedMillis;
+unsigned short countdownMillis = 3000;
+unsigned short remainingMillis;
 
 void loop() {
   resetDebouncer.update();
@@ -66,12 +99,7 @@ void loop() {
     }else{
       Serial.println("ERROR: GLASS NOT IN POSITION");
       
-      display.clearDisplay();
-      display.setTextSize(2);
-      display.setCursor(0, 0);
-      display.print("Glas fehlt");
-      display.display();
-      display.setTextSize(3);
+      writeToDisplay("Glas fehlt", 2);
     }
   }
 
@@ -96,32 +124,20 @@ void loop() {
       startState = LOW;
       runningState = HIGH;
 
-      display.clearDisplay();
-      display.setCursor(0, 0);
-      display.print("GO");
-      display.display();
-      
+      writeToDisplay("GO");
       Serial.println("###### GO ######");
+      
       startMillis = millis();
     }else if(inRange(2000, 3000, remainingMillis)){
-      display.clearDisplay();
-      display.setCursor(0, 0);
-      display.print("3");
-      display.display();
+      writeToDisplay("3");
 
 //      Serial.println("3");
     }else if(inRange(1000, 2000, remainingMillis)){
-      display.clearDisplay();
-      display.setCursor(0, 0);
-      display.print("2");
-      display.display();
+      writeToDisplay("2");
 
 //      Serial.println("2");
     }else if(inRange(0, 1000, remainingMillis)){
-      display.clearDisplay();
-      display.setCursor(0, 0);
-      display.print("1");
-      display.display();
+      writeToDisplay("1");
 
 //      Serial.println("1");
     }
@@ -147,21 +163,23 @@ void loop() {
 //    Serial.println(" ");
     
     String durMilliSec = timeMillis(durSS,durMS);
-
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println(durMilliSec);
-    display.display();
-
-    Serial.print("Elapsed Time: ");
-    Serial.println(durMilliSec);
+    if(elapsedMillis >= 10000){
+      String shame = "Ernsthaft jetzt?! " + durMilliSec + "??";
+      writeToDisplay(shame);
+      Serial.println(shame);
+    }else{
+      writeToDisplay(durMilliSec);
+      Serial.print("Elapsed Time: ");
+      Serial.println(durMilliSec);
+    }
     
     delay(10);
   }
 
-  if (triggerDebouncer.rose() && runningState == LOW)
+  if (triggerDebouncer.rose() && runningState == LOW && startState == HIGH)
   {
     startState = LOW;
+    writeToDisplay("ZU FRÜH GESTARTET", 2);
     Serial.println("###### FALSE START ######");
   }
 
@@ -179,31 +197,4 @@ void loop() {
       runningState = LOW;
     }
   }
-  
-}
-
-String timeMillis(unsigned long Sectime,unsigned long MStime)
-{
-  String dataTemp = "";
-  
-  if (Sectime < 10)
-  {
-    dataTemp = dataTemp + "0" + String(Sectime)+ ":";
-  }
-  else{
-    dataTemp = dataTemp + String(Sectime)+ ":";
-  }
-  
-  dataTemp = dataTemp + String(MStime) + "s";
-
-//  Serial.print("String Time: ");
-//  Serial.println(dataTemp);
-  
-  return dataTemp;
-}
-
-// Returns true if x is in range [low..high], else false
-bool inRange(unsigned low, unsigned high, unsigned x)
-{
-    return  ((x-low) <= (high-low));
 }
