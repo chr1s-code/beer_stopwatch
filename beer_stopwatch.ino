@@ -5,8 +5,10 @@
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
+//#define TRIGGER 14 //Trigger pin
+//#define RESET 13 //Reset pin
 #define TRIGGER 14 //Trigger pin
-#define RESET 13 //Reset pin
+#define RESET 12 //Reset pin
 
 // Instantiate a Bounce object
 Bounce triggerDebouncer = Bounce(); 
@@ -33,11 +35,11 @@ void setup() {
   delay(2000);
   
   display.clearDisplay();
-  display.setRotation(2); 
+  //display.setRotation(2); 
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0, 10);
-  display.println("Zum Starten Taste drücken");
+  display.println("Bereit");
   Serial.println("ready for startup");
   display.display();
 }
@@ -98,6 +100,8 @@ void loop() {
       Serial.println("ERROR: GLASS NOT IN POSITION");
       
       writeToDisplay("Glas fehlt", 2);
+      delay(2000);
+      writeToDisplay("Bereit", 2);
     }
   }
 
@@ -118,7 +122,7 @@ void loop() {
     Serial.print(durMS);
     Serial.println(" ");
 
-    if(remainingMillis <= 10){
+    if(remainingMillis <= 50){
       startState = LOW;
       runningState = HIGH;
 
@@ -140,7 +144,7 @@ void loop() {
 //      Serial.println("1");
     }
 
-    delay(10);
+    delay(5);
   }
 
   if(runningState) {
@@ -162,8 +166,8 @@ void loop() {
     
     String durMilliSec = timeMillis(durSS,durMS);
     if(elapsedMillis >= 10000){
-      String shame = "Ernsthaft jetzt?! " + durMilliSec + "??";
-      writeToDisplay(shame);
+      String shame = "Ernsthaft? " + durMilliSec + "?";
+      writeToDisplay(shame, 2);
       Serial.println(shame);
     }else{
       writeToDisplay(durMilliSec);
@@ -171,13 +175,13 @@ void loop() {
       Serial.println(durMilliSec);
     }
     
-    delay(10);
+    delay(5);
   }
 
   if (triggerDebouncer.rose() && runningState == LOW && startState == HIGH)
   {
     startState = LOW;
-    writeToDisplay("ZU FRÜH GESTARTET", 2);
+    writeToDisplay("FRUEHSTART", 2);
     Serial.println("###### FALSE START ######");
   }
 
@@ -186,7 +190,7 @@ void loop() {
       beerTaken = HIGH;
       Serial.println("Beer lifted");
     }
-    delay(10);
+    delay(5);
   }
 
   if(triggerDebouncer.fell() && runningState == HIGH){
