@@ -3,200 +3,216 @@
 #include <Adafruit_SSD1306.h>
 #include <Bounce2.h>
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-//#define TRIGGER 14 //Trigger pin
-//#define RESET 13 //Reset pin
-#define TRIGGER 14 //Trigger pin
-#define RESET 12 //Reset pin
+#define SCREEN_WIDTH 128  // OLED display width, in pixels
+#define SCREEN_HEIGHT 64  // OLED display height, in pixels
+#define TRIGGER 14        //Trigger pin
+#define START_BUTTON 12   //Reset pin
+#define COUNTDOWN 2999
 
 // Instantiate a Bounce object
-Bounce triggerDebouncer = Bounce(); 
-Bounce resetDebouncer = Bounce();
+Bounce2::Button startButton = Bounce2::Button();
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-void setup() {
-  pinMode(TRIGGER, INPUT_PULLUP);
-  triggerDebouncer.attach(TRIGGER);
-  triggerDebouncer.interval(5);
+unsigned long startTime = 0;
+unsigned long startTimeDrinking = 0;
+unsigned long reactionTime = 0;
+unsigned long drinkingTime = 0;
+bool gameStarted = false;
+bool startupComplete = false;
+bool glassLifted = false;
 
-  pinMode(RESET, INPUT_PULLUP);
-  resetDebouncer.attach(RESET);
-  resetDebouncer.interval(5);
-  
-  Serial.begin(115200);
-
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
-  }
-  delay(2000);
-  
-  display.clearDisplay();
-  //display.setRotation(2); 
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 10);
-  display.println("Bereit");
-  Serial.println("ready for startup");
-  display.display();
+void writeToDisplay(String str) {
+  writeToDisplay(str, 0, 0, 3);
 }
 
-String timeMillis(unsigned short Sectime,unsigned short MStime)
-{
-  String dataTemp = "";
-  
-  if (Sectime < 10)
-  {
-    dataTemp = dataTemp + "0" + String(Sectime)+ ":";
-  }
-  else{
-    dataTemp = dataTemp + String(Sectime)+ ":";
-  }
-  
-  dataTemp = dataTemp + String(MStime) + "s";
-
-//  Serial.print("String Time: ");
-//  Serial.println(dataTemp);
-  
-  return dataTemp;
+void writeToDisplay(String str, unsigned short textSize = 3) {
+  writeToDisplay(str, 0, 0, textSize);
 }
 
-// Returns true if x is in range [low..high], else false
-bool inRange(unsigned low, unsigned high, unsigned x)
-{
-    return  ((x-low) <= (high-low));
-}
-
-void writeToDisplay(String str, unsigned short textSize = 3){
+void writeToDisplay(String str, unsigned short cursorX, unsigned short cursorY, unsigned short textSize) {
   display.clearDisplay();
   display.setTextSize(textSize);
-  display.setCursor(0, 0);
+  display.setCursor(cursorX, cursorY);
   display.print(str);
   display.display();
 }
 
-bool startState = LOW;
-bool runningState = LOW;
-bool beerTaken = LOW;
+void writeNumberToDisplay(int num, unsigned short textSize = 3) {
+  char str[8];
+  itoa(num, str, 10);
 
-unsigned short startMillis;
-unsigned short currentMillis;
-unsigned short elapsedMillis;
-unsigned short countdownMillis = 3000;
-unsigned short remainingMillis;
+  writeToDisplay(str, 64, 32, textSize);
+}
 
-void loop() {
-  resetDebouncer.update();
-  triggerDebouncer.update();
+String prettifyDuration(unsigned long duration) {
+  unsigned long durMS = (duration % 1000);       //Milliseconds
+  unsigned long durSS = (duration / 1000) % 60;  //Seconds
 
-  if(resetDebouncer.rose() && runningState == LOW) {
-    if(triggerDebouncer.read() == LOW){
-      startState = HIGH;         // Toggle start button state
-      startMillis = millis();
-    }else{
-      Serial.println("ERROR: GLASS NOT IN POSITION");
-      
-      writeToDisplay("Glas fehlt", 2);
-      delay(2000);
-      writeToDisplay("Bereit", 2);
-    }
+  String dataTemp = "";
+
+
+  if (durSS == 0) {
+    return String(durMS) + "ms";
   }
 
-  if(startState) {
-    currentMillis = millis();
-    remainingMillis = (countdownMillis - (currentMillis - startMillis));
+  if (durSS < 10) {
+    dataTemp = dataTemp + "0" + String(durSS) + ":";
+  } else {
+    dataTemp = dataTemp + String(durSS) + ":";
+  }
 
-//    Serial.print("remainingMillis: ");
-//    Serial.print(remainingMillis);
-//    Serial.println(" ");    
+  dataTemp = dataTemp + String(durMS) + "s";
 
-    unsigned long durMS = (remainingMillis%1000);       //Milliseconds
-    unsigned long durSS = (remainingMillis/1000)%60;    //Seconds
-    
-    Serial.print("remaining time: ");
-    Serial.print(durSS);
-    Serial.print(" : ");
-    Serial.print(durMS);
-    Serial.println(" ");
+  return dataTemp;
+}
 
-    if(remainingMillis <= 50){
-      startState = LOW;
-      runningState = HIGH;
+void printEndScreen(unsigned long rt, unsigned long dt) {
+  Serial.println("RESULTS:");
+  Serial.print("reactionTime: ");
+  Serial.print(rt);
+  Serial.println("ms");
+  
+  Serial.print("drinkingTime: ");
+  Serial.print(dt);
+  Serial.println("ms");
+
+  Serial.print("total: ");
+  Serial.print(rt + dt);
+  Serial.println("ms");
+  Serial.println("-------------------------------------------------------------------");
+
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println("Gesamtzeit");
+  display.println(prettifyDuration(rt + dt));
+  display.setCursor(0, 48);
+  display.setTextSize(1);
+  display.println("Reaktion: " + prettifyDuration(rt));
+  display.display();
+}
+
+void startSequence() {
+  unsigned short delayTime = 10;
+  unsigned long timeSinceButtonPressed = millis();
+  unsigned long now = millis();
+  unsigned long remainingCountdownTime = 0;
+  Serial.println("Countdown started...");
+
+  for (int i = COUNTDOWN; i > 0; i - delayTime) {
+    if (digitalRead(TRIGGER) == HIGH) {
+      gameStarted = false;
+      writeToDisplay("FRUEHSTART", 2);
+      Serial.println("###### FALSE START ######");
+
+      return;
+    }
+
+    now = millis();
+    remainingCountdownTime = (COUNTDOWN - (now - timeSinceButtonPressed));
+
+    if (remainingCountdownTime <= 50) {
+      startupComplete = true;
 
       writeToDisplay("GO", 4);
       Serial.println("###### GO ######");
-      
-      startMillis = millis();
-    }else if(inRange(2000, 3000, remainingMillis)){
-      writeToDisplay("3");
 
-//      Serial.println("3");
-    }else if(inRange(1000, 2000, remainingMillis)){
-      writeToDisplay("2");
-
-//      Serial.println("2");
-    }else if(inRange(0, 1000, remainingMillis)){
-      writeToDisplay("1");
-
-//      Serial.println("1");
+      return;
     }
 
-    delay(5);
+    //Serial.println(remainingCountdownTime);
+
+    writeNumberToDisplay(((int)remainingCountdownTime / 1000) + 1, 4);
+
+    delay(delayTime);
+  }
+}
+
+void displayTestMessage() {
+  display.clearDisplay();
+  //display.setRotation(2);
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println("A");
+  display.setCursor(0, 16);
+  display.println("B");
+  display.setCursor(0, 32);
+  display.println("C");
+  display.setCursor(0, 48);
+  display.println("D");
+  display.display();
+
+  delay(2000);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TRIGGER, INPUT_PULLUP);
+
+  startButton.attach(START_BUTTON, INPUT_PULLUP);
+  startButton.interval(5);
+  startButton.setPressedState(LOW);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {  // Address 0x3D for 128x64
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ;
   }
 
-  if(runningState) {
-    currentMillis = millis();
-    elapsedMillis = (currentMillis - startMillis);
+  display.clearDisplay();
+  //display.setRotation(2);
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 32);
+  display.println("Bereit");
+  Serial.println("Ready for startup...");
+  display.display();
 
-//    Serial.print("elapsedMillis: ");
-//    Serial.print(elapsedMillis);
-//    Serial.println("");
-    
-    unsigned long durMS = (elapsedMillis%1000);       //Milliseconds
-    unsigned long durSS = (elapsedMillis/1000)%60;    //Seconds
-    
-//    Serial.print("elapsed time: ");
-//    Serial.print(durSS);
-//    Serial.print(" : ");
-//    Serial.print(durMS);
-//    Serial.println(" ");
-    
-    String durMilliSec = timeMillis(durSS,durMS);
-    if(elapsedMillis >= 10000){
-      String shame = "Ernsthaft? " + durMilliSec + "?";
-      writeToDisplay(shame, 2);
-      Serial.println(shame);
-    }else{
-      writeToDisplay(durMilliSec);
-      Serial.print("Elapsed Time: ");
-      Serial.println(durMilliSec);
-    }
-    
-    delay(5);
+  //displayTestMessage();
+}
+
+void loop() {
+  startButton.update();
+
+  if (!gameStarted && startButton.pressed() && digitalRead(TRIGGER) == LOW) {
+    gameStarted = true;
+
+    Serial.println("Game started...");
+
+    startSequence();
+    startTime = millis();
   }
 
-  if (triggerDebouncer.rose() && runningState == LOW && startState == HIGH)
-  {
-    startState = LOW;
-    writeToDisplay("FRUEHSTART", 2);
-    Serial.println("###### FALSE START ######");
+  if (!gameStarted && startButton.pressed() && digitalRead(TRIGGER) == HIGH) {
+    Serial.println("ERROR: GLASS NOT IN POSITION");
+
+    writeToDisplay("Glas fehlt", 0, 32, 2);
+    delay(1000);
+    writeToDisplay("Bereit", 0, 32, 2);
   }
 
-  if(triggerDebouncer.rose() && runningState == HIGH){
-    if(triggerDebouncer.read() == HIGH){
-      beerTaken = HIGH;
+  if (gameStarted && startupComplete) {
+    //Serial.println(millis() - startTime);
+    writeToDisplay(prettifyDuration(millis() - startTime), 3);
+
+    if (!glassLifted && digitalRead(TRIGGER) == HIGH) {  //Stop reaction timer and start drinking timer
+      reactionTime = millis() - startTime;
+      glassLifted = true;
+      startTimeDrinking = millis();
+
       Serial.println("Beer lifted");
     }
-    delay(5);
-  }
 
-  if(triggerDebouncer.fell() && runningState == HIGH){
-    if(triggerDebouncer.read() == LOW){
-      beerTaken = LOW;
-      runningState = LOW;
+    if (glassLifted && digitalRead(TRIGGER) == LOW) {  //Stop drinking timer
+      drinkingTime = millis() - startTimeDrinking;
+      gameStarted = false;
+      startupComplete = false;
+      glassLifted = false;
+
+      printEndScreen(reactionTime, drinkingTime);
     }
   }
 }
